@@ -166,24 +166,15 @@ end
 -- 🔗 Discord Link
 local DiscordLink = "Https://discord.gg/f56x5gTu"
 
--- 🎨 Build GUI using Fluent
+-- 🎨 Build GUI using Fluent (بدون نظام مفتاح نهائياً عشان يفتح فوراً)
 local Window = Fluent:CreateWindow({
     Title = "🔥 Kabos Hub ⚡",
-    SubTitle = "By Sterion - New Update",
+    SubTitle = "By Sterion - No Key Version",
     TabWidth = 140,
     Size = UDim2.fromOffset(530, 360),
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.RightControl,
-
-    KeySystem = true,
-    KeySettings = {
-        Title = "Kabos Hub - Key System",
-        Subtitle = "Join Discord to get the Key!",
-        Note = "أدخل المفتاح للوصول للسكربت",
-        SaveKey = true,
-        Key = {"kabos12128", "bBGBty98", "KABOS2026", "STERION_VIP"},
-        FileName = "KabosKeyConfig"
-    }
+    KeySystem = false
 })
 
 local Tabs = {
