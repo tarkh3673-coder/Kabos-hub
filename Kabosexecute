@@ -12,94 +12,6 @@ local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
---------------------------------------------------------------------
--- 🔐 AUTH & KEY SYSTEM SETUP (GLOBAL FOR EVERYONE)
---------------------------------------------------------------------
-
--- المفاتيح المسموح بها للجميع (شغالة لأي حساب وأي جهاز)
-local ALLOWED_KEYS = {
-    ["#bBGBty98"] = true, -- المفتاح الرئيسي المفتوح للكل
-    ["Kabos2026"] = true  -- مفتاح إضافي احتياطي
-}
-
-local DISCORD_INVITE = "https://discord.gg/4JKrYkb3r"
-
--- Load Fluent UI Library
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-
-local ScriptAuthenticated = false
-
--- Key System Window (تظهر لأي شخص)
-local KeyWindow = Fluent:CreateWindow({
-    Title = "Kabos Hub - Authentication",
-    SubTitle = "Key System",
-    TabWidth = 140,
-    Size = UDim2.fromOffset(450, 260),
-    Theme = "Dark"
-})
-
-local KeyTab = KeyWindow:AddTab({ Title = "Key System", Icon = "key" })
-
-local InputtedKey = ""
-
-KeyTab:AddInput("KeyInput", {
-    Title = "Enter Key",
-    Default = "",
-    Placeholder = "Paste Key Here...",
-    Callback = function(Value)
-        InputtedKey = Value
-    end
-})
-
-KeyTab:AddButton({
-    Title = "🔑 Verify Key",
-    Callback = function()
-        -- فحص المفتاح بدون النظر لاسم الحساب
-        if ALLOWED_KEYS[InputtedKey] then
-            ScriptAuthenticated = true
-            KeyWindow:Destroy()
-            Fluent:Notify({
-                Title = "Access Granted",
-                Content = "Welcome to Kabos Hub!",
-                Duration = 4
-            })
-        else
-            Fluent:Notify({
-                Title = "Invalid Key",
-                Content = "The key you entered is incorrect!",
-                Duration = 4
-            })
-        end
-    end
-})
-
-KeyTab:AddButton({
-    Title = "🌐 Get Key (Copy Discord Link)",
-    Callback = function()
-        if setclipboard then
-            setclipboard(DISCORD_INVITE)
-            Fluent:Notify({
-                Title = "Copied!",
-                Content = "Discord invite copied to clipboard successfully!",
-                Duration = 4
-            })
-        else
-            Fluent:Notify({
-                Title = "Error",
-                Content = "Your executor doesn't support setclipboard function.",
-                Duration = 4
-            })
-        end
-    end
-})
-
--- Wait until authenticated
-repeat task.wait(0.5) until ScriptAuthenticated
-
---------------------------------------------------------------------
--- 🚀 MAIN HUB SCRIPT (KABOS HUB X)
---------------------------------------------------------------------
-
 -- Stats File Path
 local StatsFile = "kabos_stats.json"
 
@@ -172,8 +84,10 @@ end
 DisableGoldPopups(LocalPlayer:WaitForChild("PlayerGui"))
 DisableGoldPopups(Workspace)
 
--- SaveManager Setup
+-- Load Fluent UI Library & SaveManager
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local AllowedGemNames = {
     "leftupperleg", "mesh", "meshpart", "meshes/fencebolt", "fencebolt",
@@ -285,7 +199,7 @@ local function GetPlayerGold()
     return goldVal
 end
 
--- 💎 Get Gems Amount
+-- 💎 Get Gems Amount (For Discord Tracker)
 local function GetPlayerGems()
     local gemsVal = "N/A"
     pcall(function()
@@ -404,7 +318,7 @@ local function SmartServerHop()
     TeleportService:Teleport(placeId, LocalPlayer)
 end
 
--- 🎨 Build Main GUI
+-- 🎨 Build GUI using Fluent
 local Window = Fluent:CreateWindow({
     Title = "Kabos Hub X",
     SubTitle = "By Sterion",
@@ -550,7 +464,7 @@ task.spawn(function()
     end
 end)
 
--- 🔍 💎 Bring Gems Loop
+-- 🔍 💎 Bring Gems
 local function IsExactAllowedGem(item)
     if not item then return false end
     local itemNameLower = string.lower(item.Name)
@@ -660,7 +574,7 @@ task.spawn(function()
     end
 end)
 
--- ⚔️ MAIN BOSS FARM LOOP (Anti-Stuck Timeout = 3 Min)
+-- ⚔️ MAIN BOSS FARM LOOP
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -708,23 +622,10 @@ task.spawn(function()
 
                             task.wait(0.1)
 
-                            -- ⏱️ مؤقت 3 دقائق للـ Anti-Stuck
-                            local fightStartTime = os.time()
-
                             while Toggles.AutoFarm and bossModel and bossModel.Parent and bossHum and bossHum.Health > 0 do
                                 local currentChar, currentHrp, currentHum = GetCharacterParts()
                                 if not currentChar or not currentHum or currentHum.Health <= 0 then
                                     break
-                                end
-
-                                -- ⚠️ لو عدت 180 ثانية يعمل Teleport ويرجع يظبط الموقع
-                                if (os.time() - fightStartTime) >= 180 then
-                                    if zonePart then
-                                        currentHrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0)
-                                    else
-                                        currentHrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 5, 8), bossPart.Position)
-                                    end
-                                    fightStartTime = os.time()
                                 end
 
                                 FreezeBossModel(bossModel)
@@ -732,6 +633,7 @@ task.spawn(function()
                                 currentHum:MoveTo(bossPart.Position + (bossPart.CFrame.LookVector * -10))
 
                                 local distance = (currentHrp.Position - bossPart.Position).Magnitude
+                                -- 🎯 تعديل المسافة لـ 300 Studs
                                 if distance > 300 then
                                     currentHrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 5, 8), bossPart.Position)
                                 end
@@ -747,7 +649,7 @@ task.spawn(function()
                             if not bossModel.Parent or (bossHum and bossHum.Health <= 0) then
                                 StatsTracker.TotalKills = StatsTracker.TotalKills + 1
                                 StatsTracker.BossKills[bossName] = (StatsTracker.BossKills[bossName] or 0) + 1
-                                SaveStats()
+                                SaveStats() -- حفظ العداد تلقائياً عند قتل كل بوس
                                 task.spawn(function() SendDiscordWebhook(bossName) end)
                             end
                         end
