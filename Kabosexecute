@@ -55,22 +55,22 @@ if not ScriptAuthenticated then
 
     local KeyTab = KeyWindow:AddTab({ Title = "Key Access", Icon = "key" })
 
-    local InputtedKey = ""
-
-    KeyTab:AddInput("KeyInput", {
+    local KeyInputObj = KeyTab:AddInput("KeyInput", {
         Title = "Enter Access Key",
         Default = "",
         Placeholder = "Paste Key Here...",
-        Callback = function(Value)
-            -- تنظيف المسافات لتجنب الأخطاء
-            InputtedKey = string.gsub(Value, "%s+", "")
-        end
+        Callback = function(Value) end
     })
 
     KeyTab:AddButton({
         Title = "🔑 Verify & Unlock",
         Callback = function()
-            if ALLOWED_KEYS[InputtedKey] then
+            local rawText = KeyInputObj.Value or ""
+            -- تنظيف النص من الـ Placeholder المسحوب بالخطأ والمسافات
+            local cleanKey = string.gsub(rawText, "Enter Access Key", "")
+            cleanKey = string.gsub(cleanKey, "%s+", "")
+
+            if ALLOWED_KEYS[cleanKey] or ALLOWED_KEYS[rawText] then
                 ScriptAuthenticated = true
                 KeyWindow:Destroy()
                 Fluent:Notify({
@@ -733,7 +733,6 @@ task.spawn(function()
                                     break
                                 end
 
-                                -- ⚠️ لو عدت 180 ثانية يعمل Teleport ويرجع يظبط الموقع
                                 if (os.time() - fightStartTime) >= 180 then
                                     if zonePart then
                                         currentHrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0)
