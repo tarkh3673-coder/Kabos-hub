@@ -30,7 +30,7 @@ local function DisableGoldPopups(targetFolder)
             task.wait()
             pcall(function() child:Destroy() end)
         end
-    end)
+    end
 end
 DisableGoldPopups(LocalPlayer:WaitForChild("PlayerGui"))
 DisableGoldPopups(Workspace)
@@ -115,12 +115,11 @@ local function GetActiveBossModel(bossName)
     return nil
 end
 
--- 🌐 Smart Server Hop (بدون تكرار سيرفرات + QueueOnTeleport للتشغيل التلقائي بعد الانتقال)
+-- 🌐 Smart Server Hop (بدون تكرار سيرفرات + QueueOnTeleport للتشغيل التلقائي)
 local VisitedServersFile = "Kabos_Visited_Servers.json"
 local QueueOnTeleport = (queue_on_teleport or syn and syn.queue_on_teleport or fluxus and fluxus.queue_on_teleport)
 
 local function SmartServerHop()
-    -- تفعيل التشغيل التلقائي (Auto Execute) فور الانتقال للسيرفر الجديد
     if QueueOnTeleport then
         QueueOnTeleport([[
             repeat task.wait() until game:IsLoaded()
@@ -167,9 +166,9 @@ end
 -- 🔗 Discord Link
 local DiscordLink = "Https://discord.gg/f56x5gTu"
 
--- 🎨 Build GUI using Fluent
+-- 🎨 Build GUI using Fluent (بدون حرف الـ X نهائياً)
 local Window = Fluent:CreateWindow({
-    Title = "Kabos Hub X",
+    Title = "Kabos Hub",
     SubTitle = "By Sterion",
     TabWidth = 140,
     Size = UDim2.fromOffset(530, 360),
@@ -249,7 +248,7 @@ Tabs.Misc:AddButton({
             local gatesFolder = Workspace:FindFirstChild("Gates", true)
             if gatesFolder then
                 for i = 1, 15 do
-                    local door = gatesFolder:FindFirstChild("Door" .. i)
+                    local door = gatesFolder:FindFirstChild("Door" + i)
                     if door then door:Destroy() end
                 end
             end
@@ -281,7 +280,7 @@ Tabs.Settings:AddButton({
     end
 })
 
--- 💾 Save Manager Setup (حفظ الإعدادات تلقائياً)
+-- 💾 Save Manager Setup
 SaveManager:SetLibrary(Fluent)
 SaveManager:SetFolder("KabosHubConfig")
 SaveManager:BuildConfigSection(Tabs.Settings)
