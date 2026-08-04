@@ -1,0 +1,517 @@
+-- Wait for Game Load
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Load Fluent UI & SaveManager Libraries
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+
+-- Disable Gold Popups
+local function DisableGoldPopups(targetFolder)
+    if not targetFolder then return end
+    for _, child in pairs(targetFolder:GetDescendants()) do
+        if child.Name == "GoldStatsGui" then
+            pcall(function() child:Destroy() end)
+        end
+    end
+    targetFolder.DescendantAdded:Connect(function(child)
+        if child.Name == "GoldStatsGui" then
+            task.wait()
+            pcall(function() child:Destroy() end)
+        end
+    end)
+end
+DisableGoldPopups(LocalPlayer:WaitForChild("PlayerGui"))
+DisableGoldPopups(Workspace)
+
+-- Boss & Gem Target Lists
+local BossNamesList = {
+    "WaterBoss", "BattleBot", "MechGolem", "KnightBoss", 
+    "GlitchBoss", "Boss2", "Boss1", "TheGreatWitch", "Anubis"
+}
+
+local AllowedGemNames = {
+    "leftupperleg", "mesh", "meshpart", "meshes/fencebolt", "fencebolt",
+    "meshes/dirt", "hacker border", "meshesassetsoceancylinder011",
+    "oceancylinder", "meshesfloorssmenvtiles0", "robuxicon", "vines",
+    "_gltfnode_1348_material_1"
+}
+
+local Toggles = {
+    AutoFarm = false,
+    SelectedBosses = {},
+    ServerHopAfterFarm = false,
+    FarmGem = false,
+    AutoLift = false,
+    AutoBuyAll = false
+}
+
+-- Character Helpers
+local function GetCharacterParts()
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hrp and hum and hum.Health > 0 then
+            return char, hrp, hum
+        end
+    end
+    return nil, nil, nil
+end
+
+local function MakeInvisible(state)
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, child in pairs(char:GetDescendants()) do
+        if (child:IsA("BasePart") and child.Name ~= "HumanoidRootPart") or child:IsA("Decal") then
+            child.Transparency = state and 1 or 0
+        elseif child:IsA("Accessory") then
+            local handle = child:FindFirstChild("Handle")
+            if handle then handle.Transparency = state and 1 or 0 end
+        end
+    end
+end
+
+local function FreezeBossModel(bossModel)
+    if not bossModel then return end
+    pcall(function()
+        for _, part in pairs(bossModel:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = true
+                part.CanCollide = false
+            end
+        end
+        local hum = bossModel:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            hum.PlatformStand = true
+        end
+    end)
+end
+
+local function GetActiveBossModel(bossName)
+    local bossesFolder = Workspace:FindFirstChild("BossesAreas")
+    if not bossesFolder then return nil end
+    local areaFolder = bossesFolder:FindFirstChild(bossName)
+    if areaFolder then
+        local model = areaFolder:FindFirstChild(bossName)
+        if model and model:IsA("Model") then
+            local hum = model:FindFirstChildWhichIsA("Humanoid")
+            if hum and hum.Health > 0 then return model end
+        end
+    end
+    return nil
+end
+
+-- Server Hop Helper
+local VisitedServersFile = "kabos_visited.json"
+local QueueOnTeleport = (queue_on_teleport or syn and syn.queue_on_teleport or fluxus and fluxus.queue_on_teleport)
+
+local function SmartServerHop()
+    if QueueOnTeleport then
+        QueueOnTeleport([[
+            repeat task.wait() until game:IsLoaded()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+        ]])
+    end
+
+    local visited = {}
+    if isfile and isfile(VisitedServersFile) then
+        pcall(function() visited = HttpService:JSONDecode(readfile(VisitedServersFile)) or {} end)
+    end
+    table.insert(visited, game.JobId)
+    if writefile then writefile(VisitedServersFile, HttpService:JSONEncode(visited)) end
+
+    local placeId = game.PlaceId
+    local serversUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local success, response = pcall(function() return HttpService:JSONDecode(game:HttpGet(serversUrl)) end)
+
+    if success and response and response.data then
+        for _, server in ipairs(response.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                local alreadyVisited = false
+                for _, vId in ipairs(visited) do
+                    if vId == server.id then alreadyVisited = true; break end
+                end
+                if not alreadyVisited then
+                    TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
+                    task.wait(4)
+                    return
+                end
+            end
+        end
+    end
+    if writefile then writefile(VisitedServersFile, HttpService:JSONEncode({})) end
+    TeleportService:Teleport(placeId, LocalPlayer)
+end
+
+-- 🔗 رابط سيرفر الديسكورد الخاص بك
+local DiscordLink = "Https://discord.gg/f56x5gTu"
+
+-- 🎨 Build GUI using Fluent (مُدمج مع Key System)
+local Window = Fluent:CreateWindow({
+    Title = "Kabos Hub X",
+    SubTitle = "By Sterion",
+    TabWidth = 140,
+    Size = UDim2.fromOffset(530, 360),
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl,
+
+    -- 🔒 نظام المفاتيح والأكواد (تم اضافة يوزرك هنا)
+    KeySystem = true,
+    KeySettings = {
+        Title = "Kabos Hub - Key System",
+        Subtitle = "Join Discord to get the Key!",
+        Note = "أدخل المفتاح للوصول للسكربت",
+        SaveKey = true,
+        Key = {"kabos12128", "bBGBty98", "KABOS2026", "STERION_VIP"},
+        FileName = "KabosKeyConfig"
+    }
+})
+
+local Tabs = {
+    Combat = Window:AddTab({ Title = "Combat", Icon = "swords" }),
+    Farm = Window:AddTab({ Title = "Auto Farm", Icon = "dumbbell" }),
+    Misc = Window:AddTab({ Title = "Misc / Gates", Icon = "door-open" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+-- ⚔️ Combat Options
+local BossMultiDropdown = Tabs.Combat:AddDropdown("BossMultiSelector", {
+    Title = "Select Bosses (Multi-Select)",
+    Values = BossNamesList,
+    Multi = true,
+    Default = {},
+    Callback = function(Value)
+        Toggles.SelectedBosses = Value
+    end
+})
+
+Tabs.Combat:AddToggle("AutoFarmToggle", {
+    Title = "Auto TP + Attack Selected Bosses",
+    Default = false,
+    Callback = function(Value)
+        Toggles.AutoFarm = Value
+        MakeInvisible(Value)
+    end
+})
+
+Tabs.Combat:AddToggle("HopToggle", {
+    Title = "Auto Server Hop (After Clear)",
+    Default = false,
+    Callback = function(Value)
+        Toggles.ServerHopAfterFarm = Value
+    end
+})
+
+-- 🏋️ Auto Farm Options
+Tabs.Farm:AddToggle("AutoLiftToggle", {
+    Title = "Auto Lift (+ Mushroom Bring)",
+    Default = false,
+    Callback = function(Value) Toggles.AutoLift = Value end
+})
+
+Tabs.Farm:AddToggle("FarmGemToggle", {
+    Title = "Farm Gem",
+    Default = false,
+    Callback = function(Value) Toggles.FarmGem = Value end
+})
+
+Tabs.Farm:AddToggle("AutoBuyAllToggle", {
+    Title = "Auto Buy All",
+    Default = false,
+    Callback = function(Value) Toggles.AutoBuyAll = Value end
+})
+
+-- 🚪 Misc & Gates Options
+Tabs.Misc:AddButton({
+    Title = "Remove All Doors (1-15)",
+    Callback = function()
+        pcall(function()
+            local gatesFolder = Workspace:FindFirstChild("Gates", true)
+            if gatesFolder then
+                for i = 1, 15 do
+                    local door = gatesFolder:FindFirstChild("Door" .. i)
+                    if door then door:Destroy() end
+                end
+            end
+        end)
+    end
+})
+
+-- ⚙️ Settings
+Tabs.Settings:AddButton({
+    Title = "Copy Discord Server Link 🔗",
+    Description = "ينسخ رابط سيرفر الديسكورد تلقائياً",
+    Callback = function()
+        if setclipboard then
+            setclipboard(DiscordLink)
+            Fluent:Notify({
+                Title = "Copied!",
+                Content = "تم نسخ رابط الديسكورد بنجاح!",
+                Duration = 4
+            })
+        else
+            Fluent:Notify({
+                Title = "Error",
+                Content = "الـ Executor لا يدعم خاصية النسخ المباشر.",
+                Duration = 4
+            })
+        end
+    end
+})
+
+Tabs.Settings:AddButton({
+    Title = "Manual Server Hop",
+    Callback = SmartServerHop
+})
+
+Tabs.Settings:AddButton({
+    Title = "Clear Server Hop History",
+    Callback = function()
+        if writefile then writefile(VisitedServersFile, HttpService:JSONEncode({})) end
+    end
+})
+
+-- 💾 Save Manager Setup
+SaveManager:SetLibrary(Fluent)
+SaveManager:SetFolder("KabosHubConfig")
+SaveManager:BuildConfigSection(Tabs.Settings)
+SaveManager:LoadAutoloadConfig()
+
+-- 🛒 AUTO BUY LOOP
+task.spawn(function()
+    while true do
+        if Toggles.AutoBuyAll then
+            pcall(function()
+                local buyRemote = ReplicatedStorage:FindFirstChild("1eb183c1aa464630895584d6306f8a3c")
+                local equipRemote = ReplicatedStorage:FindFirstChild("SoftShutdownEquipState")
+
+                if buyRemote then
+                    buyRemote:InvokeServer("BUYALLWEIGHTS")
+                    task.wait(0.05)
+                    buyRemote:InvokeServer("PURCHASEDWEIGHTS")
+                    task.wait(0.05)
+                    buyRemote:InvokeServer("CURRENTWEIGHT")
+                    task.wait(0.05)
+                    buyRemote:InvokeServer("CURRENTSTATEHIDEYOURWEIGHT")
+                    task.wait(0.05)
+                    buyRemote:InvokeServer("CURRENTMULTIPLIES")
+                    task.wait(0.05)
+                end
+
+                if equipRemote then
+                    local equippedWeightName = nil
+
+                    local statsFolder = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("Stats") or LocalPlayer:FindFirstChild("Data")
+                    if statsFolder then
+                        for _, val in pairs(statsFolder:GetChildren()) do
+                            if val.Name:lower():find("weight") or val.Name:lower():find("tool") or val.Name:lower():find("equip") then
+                                equippedWeightName = tostring(val.Value)
+                                break
+                            end
+                        end
+                    end
+
+                    if not equippedWeightName or equippedWeightName == "" then
+                        local charTool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                        equippedWeightName = charTool and charTool.Name or "Moon"
+                    end
+
+                    equipRemote:FireServer({
+                        ToolName = equippedWeightName,
+                        Mode = "weight"
+                    })
+
+                    if buyRemote then
+                        buyRemote:InvokeServer("CURRENTGAMEPASSES")
+                    end
+                end
+            end)
+        end
+        task.wait(1.5)
+    end
+end)
+
+-- 🏋️ Auto Lift Loop
+task.spawn(function()
+    while true do
+        if Toggles.AutoLift then
+            pcall(function()
+                local liftRemote = ReplicatedStorage:FindFirstChild("2663824b812c4e1e80abcb37b7ea983c")
+                if liftRemote then liftRemote:FireServer("9") end
+            end)
+
+            pcall(function()
+                local _, hrp, hum = GetCharacterParts()
+                if hrp and hum and hum.Health > 0 then
+                    local mashroomsFolder = Workspace:FindFirstChild("Mashrooms", true)
+                    if mashroomsFolder then
+                        for _, item in pairs(mashroomsFolder:GetChildren()) do
+                            if item.Name == "Mushroom" then
+                                for _, child in pairs(item:GetDescendants()) do
+                                    local touch = child:FindFirstChildWhichIsA("TouchTransmitter", true) or child:FindFirstChild("TouchInterest", true)
+                                    if touch then
+                                        local targetPart = child:IsA("BasePart") and child or child.Parent
+                                        if targetPart and targetPart:IsA("BasePart") then
+                                            targetPart.CFrame = hrp.CFrame
+                                            if firetouchinterest then
+                                                firetouchinterest(hrp, targetPart, 0)
+                                                task.wait(0.01)
+                                                firetouchinterest(hrp, targetPart, 1)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- 🔍 Farm Gem Loop
+local function IsExactAllowedGem(item)
+    if not item then return false end
+    local itemNameLower = string.lower(item.Name)
+
+    local isMatched = false
+    for _, allowedName in ipairs(AllowedGemNames) do
+        if itemNameLower:find(allowedName, 1, true) then
+            isMatched = true
+            break
+        end
+    end
+    if not isMatched then return false end
+
+    local hasTouch = item:FindFirstChildWhichIsA("TouchTransmitter", true) or item:FindFirstChild("TouchInterest", true)
+    local hasPrompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+
+    return (hasTouch ~= nil or hasPrompt ~= nil)
+end
+
+task.spawn(function()
+    while true do
+        if Toggles.FarmGem then
+            pcall(function()
+                local _, hrp, hum = GetCharacterParts()
+                if hrp and hum and hum.Health > 0 then
+                    for _, item in pairs(Workspace:GetDescendants()) do
+                        if IsExactAllowedGem(item) then
+                            local targetPart = item:IsA("BasePart") and item or item:FindFirstChildWhichIsA("BasePart", true)
+                            if targetPart and targetPart.Size.Magnitude < 10 then
+                                targetPart.CFrame = hrp.CFrame
+                                local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if firetouchinterest then
+                                    firetouchinterest(hrp, targetPart, 0)
+                                    task.wait(0.01)
+                                    firetouchinterest(hrp, targetPart, 1)
+                                elseif prompt and fireproximityprompt then
+                                    fireproximityprompt(prompt)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.3)
+    end
+end)
+
+-- ⚔️ MAIN BOSS FARM LOOP
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if Toggles.AutoFarm then
+            local char, hrp, humanoid = GetCharacterParts()
+
+            if char and hrp and humanoid and humanoid.Health > 0 then
+                MakeInvisible(true)
+                local attackEvent = ReplicatedStorage:FindFirstChild("4c85c5705ad44e27883ec776e056211e")
+
+                local activeBossTargets = {}
+                for bossName, isSelected in pairs(Toggles.SelectedBosses) do
+                    if isSelected then
+                        table.insert(activeBossTargets, bossName)
+                    end
+                end
+
+                if #activeBossTargets == 0 then
+                    activeBossTargets = BossNamesList
+                end
+
+                for _, bossName in ipairs(activeBossTargets) do
+                    if not Toggles.AutoFarm then break end
+
+                    local bossModel = GetActiveBossModel(bossName)
+                    if bossModel then
+                        local bossHum = bossModel:FindFirstChildWhichIsA("Humanoid")
+                        local bossPart = bossModel:FindFirstChild("HumanoidRootPart") or bossModel:FindFirstChildWhichIsA("BasePart")
+
+                        if bossPart and bossHum and bossHum.Health > 0 then
+                            local bossesFolder = Workspace:FindFirstChild("BossesAreas")
+                            local areaFolder = bossesFolder and bossesFolder:FindFirstChild(bossName)
+                            local zonePart = areaFolder and (areaFolder:FindFirstChild("Zone") or areaFolder:FindFirstChildWhichIsA("BasePart"))
+
+                            FreezeBossModel(bossModel)
+
+                            if zonePart then
+                                hrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0)
+                                if firetouchinterest then
+                                    firetouchinterest(hrp, zonePart, 0)
+                                    task.wait(0.01)
+                                    firetouchinterest(hrp, zonePart, 1)
+                                end
+                            else
+                                hrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 2, 3), bossPart.Position)
+                            end
+
+                            task.wait(0.1)
+
+                            while Toggles.AutoFarm and bossModel and bossModel.Parent and bossHum and bossHum.Health > 0 do
+                                local currentChar, currentHrp, currentHum = GetCharacterParts()
+                                if not currentChar or not currentHum or currentHum.Health <= 0 then
+                                    break
+                                end
+
+                                FreezeBossModel(bossModel)
+
+                                if attackEvent then
+                                    for i = 1, 10 do
+                                        attackEvent:FireServer("PUNCH", bossModel)
+                                    end
+                                end
+                                task.wait(0.02)
+                            end
+                        end
+                    end
+                end
+
+                if Toggles.ServerHopAfterFarm and Toggles.AutoFarm then
+                    local currentChar, _, currentHum = GetCharacterParts()
+                    if currentChar and currentHum and currentHum.Health > 0 then
+                        SmartServerHop()
+                    end
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+    end
+end)
+
