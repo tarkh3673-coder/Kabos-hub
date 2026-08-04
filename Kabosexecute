@@ -15,11 +15,16 @@ local LocalPlayer = Players.LocalPlayer
 --------------------------------------------------------------------
 -- 🔐 AUTH & KEY SYSTEM SETUP
 --------------------------------------------------------------------
--- اليوزرات المسموح لها بالوصول التلقائي فوراً (Auto Bypass)
+-- اليوزرات المسموح لها بالوصول التلقائي (Auto Bypass)
 local MY_USERNAMES = {"kabos12128", "kabos257"} 
-local MY_EXCLUSIVE_KEY = "#bBGBty98" -- الكود الخاص بيك حصراً
+
+-- المفتاح الرئيسي للـ Owner
+local MY_EXCLUSIVE_KEY = "#bBGBty98" 
+
+-- المفاتيح العامة لباقي المستخدمين
 local ALLOWED_KEYS = {
-    ["Kabos2026"] = true  -- مفتاح عام تجريبي للناس
+    ["#bBGBty98"] = true, -- إمكانية استخدامه كمفتاح مباشر
+    ["Kabos2026"] = true  -- مفتاح تجريبي
 }
 local DISCORD_INVITE = "https://discord.gg/4JKrYkb3r"
 
@@ -39,12 +44,12 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 
 local ScriptAuthenticated = false
 
--- 1. Auto Bypass for kabos12128 & kabos257
+-- 1. Auto Bypass for Whitelisted Usernames
 if IsMyAccount() then
     ScriptAuthenticated = true
     Fluent:Notify({
         Title = "Kabos Hub X",
-        Content = "Welcome Back, Owner/Whitelisted User! Auto-authenticated successfully.",
+        Content = "Welcome Back, Owner! Auto-authenticated successfully.",
         Duration = 5
     })
 else
@@ -73,19 +78,8 @@ else
     KeyTab:AddButton({
         Title = "🔑 Verify Key",
         Callback = function()
-            -- Check Exclusive Owner Key Condition
-            if InputtedKey == MY_EXCLUSIVE_KEY then
-                if IsMyAccount() then
-                    ScriptAuthenticated = true
-                    KeyWindow:Destroy()
-                else
-                    Fluent:Notify({
-                        Title = "Access Denied",
-                        Content = "This special key is locked to authorized accounts only!",
-                        Duration = 4
-                    })
-                end
-            elseif ALLOWED_KEYS[InputtedKey] then
+            -- فحص المفتاح الرئيسي أو القائمة
+            if InputtedKey == MY_EXCLUSIVE_KEY or ALLOWED_KEYS[InputtedKey] then
                 ScriptAuthenticated = true
                 KeyWindow:Destroy()
                 Fluent:Notify({
