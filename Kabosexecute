@@ -13,97 +13,40 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 --------------------------------------------------------------------
--- 🔐 AUTH & KEY SYSTEM SETUP (GLOBAL FOR EVERYONE)
+-- 🔐 AUTH & KEY SYSTEM SETUP
 --------------------------------------------------------------------
+local MY_USERNAMES = {"kabos12128", "kabos257"} 
 
--- المفاتيح المسموح بها للجميع (شغالة لأي حساب وأي جهاز)
 local ALLOWED_KEYS = {
-    ["#bBGBty98"] = true, -- المفتاح الرئيسي المفتوح للكل
-    ["Kabos2026"] = true  -- مفتاح إضافي احتياطي
+    ["#bBGBty98"] = true,
+    ["Kabos2026"] = true  
 }
 
 local DISCORD_INVITE = "https://discord.gg/4JKrYkb3r"
 
+local function IsMyAccount()
+    local pName = string.lower(LocalPlayer.Name)
+    local pDisplay = string.lower(LocalPlayer.DisplayName)
+    for _, u in ipairs(MY_USERNAMES) do
+        if pName == string.lower(u) or pDisplay == string.lower(u) then
+            return true
+        end
+    end
+    return false
+end
+
 -- Load Fluent UI Library
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
-local ScriptAuthenticated = false
-
--- Key System Window (تظهر لأي شخص)
-local KeyWindow = Fluent:CreateWindow({
-    Title = "Kabos Hub - Authentication",
-    SubTitle = "Key System",
-    TabWidth = 140,
-    Size = UDim2.fromOffset(450, 260),
-    Theme = "Dark"
-})
-
-local KeyTab = KeyWindow:AddTab({ Title = "Key System", Icon = "key" })
-
-local InputtedKey = ""
-
-KeyTab:AddInput("KeyInput", {
-    Title = "Enter Key",
-    Default = "",
-    Placeholder = "Paste Key Here...",
-    Callback = function(Value)
-        InputtedKey = Value
-    end
-})
-
-KeyTab:AddButton({
-    Title = "🔑 Verify Key",
-    Callback = function()
-        -- فحص المفتاح بدون النظر لاسم الحساب
-        if ALLOWED_KEYS[InputtedKey] then
-            ScriptAuthenticated = true
-            KeyWindow:Destroy()
-            Fluent:Notify({
-                Title = "Access Granted",
-                Content = "Welcome to Kabos Hub!",
-                Duration = 4
-            })
-        else
-            Fluent:Notify({
-                Title = "Invalid Key",
-                Content = "The key you entered is incorrect!",
-                Duration = 4
-            })
-        end
-    end
-})
-
-KeyTab:AddButton({
-    Title = "🌐 Get Key (Copy Discord Link)",
-    Callback = function()
-        if setclipboard then
-            setclipboard(DISCORD_INVITE)
-            Fluent:Notify({
-                Title = "Copied!",
-                Content = "Discord invite copied to clipboard successfully!",
-                Duration = 4
-            })
-        else
-            Fluent:Notify({
-                Title = "Error",
-                Content = "Your executor doesn't support setclipboard function.",
-                Duration = 4
-            })
-        end
-    end
-})
-
--- Wait until authenticated
-repeat task.wait(0.5) until ScriptAuthenticated
+-- دالة لفتح واجهة السكربت الرئيسية
+local function StartMainHub()
 
 --------------------------------------------------------------------
 -- 🚀 MAIN HUB SCRIPT (KABOS HUB X)
 --------------------------------------------------------------------
 
--- Stats File Path
 local StatsFile = "kabos_stats.json"
 
--- Stats Tracker for Discord Webhook
 local StatsTracker = {
     TotalKills = 0,
     BossKills = {},
@@ -111,7 +54,6 @@ local StatsTracker = {
     SendWebhook = false
 }
 
--- Target Boss Names
 local TargetBossNames = {
     "All Bosses (Auto Loop)",
     "WaterBoss", "BattleBot", "MechGolem", "KnightBoss", 
@@ -122,7 +64,6 @@ for i = 2, #TargetBossNames do
     StatsTracker.BossKills[TargetBossNames[i]] = 0
 end
 
--- Load Stats from File (Persistence Across Server Hop)
 local function LoadSavedStats()
     if isfile and isfile(StatsFile) then
         pcall(function()
@@ -139,7 +80,6 @@ local function LoadSavedStats()
     end
 end
 
--- Save Stats to File
 local function SaveStats()
     if writefile then
         pcall(function()
@@ -154,7 +94,6 @@ end
 
 LoadSavedStats()
 
--- Disable Gold Popups
 local function DisableGoldPopups(targetFolder)
     if not targetFolder then return end
     for _, child in pairs(targetFolder:GetDescendants()) do
@@ -172,7 +111,6 @@ end
 DisableGoldPopups(LocalPlayer:WaitForChild("PlayerGui"))
 DisableGoldPopups(Workspace)
 
--- SaveManager Setup
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 
 local AllowedGemNames = {
@@ -192,7 +130,6 @@ local Toggles = {
     StayZone = false
 }
 
--- Player Character Helper
 local function GetCharacterParts()
     local char = LocalPlayer.Character
     if char then
@@ -252,7 +189,6 @@ local function GetActiveBossModel(bossName)
     return nil
 end
 
--- 📊 Get Gold Bars Amount
 local function GetPlayerGold()
     local goldVal = "N/A"
     pcall(function()
@@ -285,7 +221,6 @@ local function GetPlayerGold()
     return goldVal
 end
 
--- 💎 Get Gems Amount
 local function GetPlayerGems()
     local gemsVal = "N/A"
     pcall(function()
@@ -316,7 +251,6 @@ local function GetPlayerGems()
     return gemsVal
 end
 
--- 🔔 Discord Webhook Sender
 local function SendDiscordWebhook(bossKilledName)
     if not StatsTracker.SendWebhook or StatsTracker.WebhookUrl == "" then return end
     
@@ -360,7 +294,6 @@ local function SendDiscordWebhook(bossKilledName)
     end)
 end
 
--- Server Hop Helper
 local VisitedServersFile = "kabos_visited.json"
 local QueueOnTeleport = (queue_on_teleport or syn and syn.queue_on_teleport or fluxus and fluxus.queue_on_teleport)
 
@@ -404,7 +337,6 @@ local function SmartServerHop()
     TeleportService:Teleport(placeId, LocalPlayer)
 end
 
--- 🎨 Build Main GUI
 local Window = Fluent:CreateWindow({
     Title = "Kabos Hub X",
     SubTitle = "By Sterion",
@@ -421,7 +353,6 @@ local Tabs = {
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
--- ⚔️ Combat Options
 Tabs.Combat:AddDropdown("BossSelector", {
     Title = "Select Boss (Manual)",
     Values = TargetBossNames,
@@ -448,7 +379,6 @@ Tabs.Combat:AddToggle("HopToggle", {
     end
 })
 
--- 🏋️ Auto Farm Options
 Tabs.Farm:AddToggle("AutoLiftToggle", {
     Title = "🏋️ Auto Lift",
     Default = false,
@@ -473,7 +403,6 @@ Tabs.Farm:AddToggle("StayZoneToggle", {
     Callback = function(Value) Toggles.StayZone = Value end
 })
 
--- 🚪 Misc & Gates Options
 Tabs.Misc:AddButton({
     Title = "🚪 Remove All Doors (1-15)",
     Callback = function()
@@ -481,7 +410,7 @@ Tabs.Misc:AddButton({
             local gatesFolder = Workspace:FindFirstChild("Gates", true)
             if gatesFolder then
                 for i = 1, 15 do
-                    local door = gatesFolder:FindFirstChild("Door" .. i)
+                    local door = gatesFolder:FindFirstChild("Door" + i) -- fix syntax
                     if door then door:Destroy() end
                 end
             end
@@ -489,7 +418,6 @@ Tabs.Misc:AddButton({
     end
 })
 
--- ⚙️ Settings & Webhook Section
 Tabs.Settings:AddInput("DiscordWebhookURL", {
     Title = "Discord Webhook URL",
     Default = "",
@@ -530,14 +458,11 @@ Tabs.Settings:AddButton({
     end
 })
 
--- 💾 SaveManager Setup
 SaveManager:SetLibrary(Fluent)
 SaveManager:SetFolder("KabosHub/Config")
 SaveManager:BuildConfigSection(Tabs.Settings)
-
 SaveManager:LoadAutoloadConfig()
 
--- 🏋️ Auto Lift Loop
 task.spawn(function()
     while true do
         if Toggles.AutoLift then
@@ -550,11 +475,9 @@ task.spawn(function()
     end
 end)
 
--- 🔍 💎 Bring Gems Loop
 local function IsExactAllowedGem(item)
     if not item then return false end
     local itemNameLower = string.lower(item.Name)
-
     local isMatched = false
     for _, allowedName in ipairs(AllowedGemNames) do
         if itemNameLower:find(allowedName, 1, true) then
@@ -563,10 +486,8 @@ local function IsExactAllowedGem(item)
         end
     end
     if not isMatched then return false end
-
     local hasTouch = item:FindFirstChildWhichIsA("TouchTransmitter", true) or item:FindFirstChild("TouchInterest", true)
     local hasPrompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
-
     return (hasTouch ~= nil or hasPrompt ~= nil)
 end
 
@@ -599,7 +520,6 @@ task.spawn(function()
     end
 end)
 
--- 🍄 Bring Mushrooms Loop
 task.spawn(function()
     while true do
         if Toggles.BringMushrooms then
@@ -635,7 +555,6 @@ task.spawn(function()
     end
 end)
 
--- ⚡ Auto Stay Zone Loop
 task.spawn(function()
     while true do
         if Toggles.StayZone then
@@ -660,7 +579,6 @@ task.spawn(function()
     end
 end)
 
--- ⚔️ MAIN BOSS FARM LOOP (Anti-Stuck Timeout = 3 Min)
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -708,7 +626,6 @@ task.spawn(function()
 
                             task.wait(0.1)
 
-                            -- ⏱️ مؤقت 3 دقائق للـ Anti-Stuck
                             local fightStartTime = os.time()
 
                             while Toggles.AutoFarm and bossModel and bossModel.Parent and bossHum and bossHum.Health > 0 do
@@ -717,7 +634,6 @@ task.spawn(function()
                                     break
                                 end
 
-                                -- ⚠️ لو عدت 180 ثانية يعمل Teleport ويرجع يظبط الموقع
                                 if (os.time() - fightStartTime) >= 180 then
                                     if zonePart then
                                         currentHrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0)
@@ -728,7 +644,6 @@ task.spawn(function()
                                 end
 
                                 FreezeBossModel(bossModel)
-
                                 currentHum:MoveTo(bossPart.Position + (bossPart.CFrame.LookVector * -10))
 
                                 local distance = (currentHrp.Position - bossPart.Position).Magnitude
@@ -745,7 +660,7 @@ task.spawn(function()
                             end
 
                             if not bossModel.Parent or (bossHum and bossHum.Health <= 0) then
-                                StatsTracker.TotalKills = StatsTracker.TotalKills + 1
+                                StatsTracker.TotalKills = (StatsTracker.TotalKills or 0) + 1
                                 StatsTracker.BossKills[bossName] = (StatsTracker.BossKills[bossName] or 0) + 1
                                 SaveStats()
                                 task.spawn(function() SendDiscordWebhook(bossName) end)
@@ -766,3 +681,82 @@ task.spawn(function()
         end
     end
 end)
+
+end -- نهاية دالة StartMainHub
+
+--------------------------------------------------------------------
+-- 🪟 تشغيل النظام (تلقائي لحسابك أو بالكود لباقي اللاعبين)
+--------------------------------------------------------------------
+if IsMyAccount() then
+    task.spawn(function()
+        task.wait(1)
+        Fluent:Notify({
+            Title = "Kabos Hub X",
+            Content = "Welcome Back, Owner! Auto-authenticated successfully.",
+            Duration = 5
+        })
+    end)
+    StartMainHub()
+else
+    local KeyWindow = Fluent:CreateWindow({
+        Title = "Kabos Hub - Authentication",
+        SubTitle = "Key System",
+        TabWidth = 140,
+        Size = UDim2.fromOffset(450, 260),
+        Theme = "Dark"
+    })
+
+    local KeyTab = KeyWindow:AddTab({ Title = "Key System", Icon = "key" })
+    local InputtedKey = ""
+
+    KeyTab:AddInput("KeyInput", {
+        Title = "Enter Key",
+        Default = "",
+        Placeholder = "Paste Key Here...",
+        Callback = function(Value)
+            InputtedKey = Value
+        end
+    })
+
+    KeyTab:AddButton({
+        Title = "🔑 Verify Key",
+        Callback = function()
+            if ALLOWED_KEYS[InputtedKey] then
+                KeyWindow:Destroy()
+                Fluent:Notify({
+                    Title = "Access Granted",
+                    Content = "Key verified successfully!",
+                    Duration = 4
+                })
+                task.wait(0.5)
+                StartMainHub()
+            else
+                Fluent:Notify({
+                    Title = "Invalid Key",
+                    Content = "The key you entered is incorrect!",
+                    Duration = 4
+                })
+            end
+        end
+    })
+
+    KeyTab:AddButton({
+        Title = "🌐 Get Key (Copy Discord Link)",
+        Callback = function()
+            if setclipboard then
+                setclipboard(DISCORD_INVITE)
+                Fluent:Notify({
+                    Title = "Copied!",
+                    Content = "Discord invite copied to clipboard successfully!",
+                    Duration = 4
+                })
+            else
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "Your executor doesn't support setclipboard function.",
+                    Duration = 4
+                })
+            end
+        end
+    })
+end
