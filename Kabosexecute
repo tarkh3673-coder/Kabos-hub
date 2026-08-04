@@ -36,14 +36,15 @@ local function IsMyAccount()
     return false
 end
 
+-- حالة القفل العامة (تكون true فوراً ليوزراتك، وfalse لباقي الناس)
+local IsUnlocked = IsMyAccount()
+
 -- Load Fluent UI Library
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 --------------------------------------------------------------------
--- 🎨 INITIAL WINDOW SETUP
+-- 🎨 UI WINDOW SETUP
 --------------------------------------------------------------------
-local IsUnlocked = IsMyAccount()
-
 local Window = Fluent:CreateWindow({
     Title = "Kabos Hub X",
     SubTitle = IsUnlocked and "Unlocked (Owner)" or "🔒 Key System",
@@ -54,509 +55,558 @@ local Window = Fluent:CreateWindow({
 })
 
 --------------------------------------------------------------------
--- 🚀 FULL SCRIPT IMPLEMENTATION FUNCTION (ALL 27KB ENGINE)
+-- 📊 VARIABLES & DATA TRACKING
 --------------------------------------------------------------------
-local MainTabsCreated = false
+local TargetBossNames = {
+    "All Bosses (Auto Loop)",
+    "WaterBoss", "BattleBot", "MechGolem", "KnightBoss", 
+    "GlitchBoss", "Boss2", "Boss1", "TheGreatWitch", "Anubis"
+}
 
-local function BuildAndRunMainScript()
-    if MainTabsCreated then return end
-    MainTabsCreated = true
+local Toggles = {
+    AutoFarm = false,
+    SelectedBoss = "All Bosses (Auto Loop)",
+    ServerHopAfterFarm = false,
+    BringGems = false,
+    BringMushrooms = false,
+    AutoLift = false,
+    StayZone = false
+}
 
-    -- إشعارات التفعيل
-    Fluent:Notify({ Title = "Kabos Hub X", Content = "Access Granted! Loading all modules...", Duration = 4 })
+local StatsFile = "kabos_stats.json"
+local StatsTracker = {
+    TotalKills = 0,
+    BossKills = {},
+    WebhookUrl = "",
+    SendWebhook = false
+}
 
-    -- إنشاء تابات السكربت كاملة (دلوقتي بس هتظهر للمستخدم)
-    local Tabs = {
-        Combat   = Window:AddTab({ Title = "Combat", Icon = "swords" }),
-        Farm     = Window:AddTab({ Title = "Auto Farm", Icon = "dumbbell" }),
-        Misc     = Window:AddTab({ Title = "Misc / Gates", Icon = "door-open" }),
-        Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
-    }
+for i = 2, #TargetBossNames do
+    StatsTracker.BossKills[TargetBossNames[i]] = 0
+end
 
-    local TargetBossNames = {
-        "All Bosses (Auto Loop)",
-        "WaterBoss", "BattleBot", "MechGolem", "KnightBoss", 
-        "GlitchBoss", "Boss2", "Boss1", "TheGreatWitch", "Anubis"
-    }
-
-    local Toggles = {
-        AutoFarm = false,
-        SelectedBoss = "All Bosses (Auto Loop)",
-        ServerHopAfterFarm = false,
-        BringGems = false,
-        BringMushrooms = false,
-        AutoLift = false,
-        StayZone = false
-    }
-
-    -- 📊 Tracking & Webhook System
-    local StatsFile = "kabos_stats.json"
-    local StatsTracker = {
-        TotalKills = 0,
-        BossKills = {},
-        WebhookUrl = "",
-        SendWebhook = false
-    }
-
-    for i = 2, #TargetBossNames do
-        StatsTracker.BossKills[TargetBossNames[i]] = 0
-    end
-
-    local function LoadSavedStats()
-        if isfile and isfile(StatsFile) then
-            pcall(function()
-                local data = HttpService:JSONDecode(readfile(StatsFile))
-                if data then
-                    StatsTracker.TotalKills = data.TotalKills or 0
-                    if data.BossKills then
-                        for boss, count in pairs(data.BossKills) do
-                            StatsTracker.BossKills[boss] = count
-                        end
+local function LoadSavedStats()
+    if isfile and isfile(StatsFile) then
+        pcall(function()
+            local data = HttpService:JSONDecode(readfile(StatsFile))
+            if data then
+                StatsTracker.TotalKills = data.TotalKills or 0
+                if data.BossKills then
+                    for boss, count in pairs(data.BossKills) do
+                        StatsTracker.BossKills[boss] = count
                     end
                 end
-            end)
-        end
-    end
-    LoadSavedStats()
-
-    local function SaveStats()
-        if writefile then
-            pcall(function()
-                local data = {
-                    TotalKills = StatsTracker.TotalKills,
-                    BossKills = StatsTracker.BossKills
-                }
-                writefile(StatsFile, HttpService:JSONEncode(data))
-            end)
-        end
-    end
-
-    local function SendDiscordWebhook(bossName, killsCount)
-        if not StatsTracker.SendWebhook or StatsTracker.WebhookUrl == "" then return end
-        pcall(function()
-            local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-            if requestFunc then
-                local embed = {
-                    ["title"] = "⚔️ Boss Defeated - Kabos Hub X",
-                    ["color"] = 65280,
-                    ["fields"] = {
-                        {["name"] = "Player", ["value"] = LocalPlayer.Name, ["inline"] = true},
-                        {["name"] = "Boss Killed", ["value"] = bossName, ["inline"] = true},
-                        {["name"] = "Total Kills", ["value"] = tostring(killsCount), ["inline"] = true}
-                    },
-                    ["footer"] = {["text"] = "Kabos Hub X Auto Tracker"}
-                }
-                requestFunc({
-                    Url = StatsTracker.WebhookUrl,
-                    Method = "POST",
-                    Headers = {["Content-Type"] = "application/json"},
-                    Body = HttpService:JSONEncode({embeds = {embed}})
-                })
             end
         end)
     end
+end
+LoadSavedStats()
 
-    -- 🔧 Helper Functions
-    local function GetCharacterParts()
-        local char = LocalPlayer.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChildWhichIsA("Humanoid")
-            if hrp and hum and hum.Health > 0 then
-                return char, hrp, hum
-            end
-        end
-        return nil, nil, nil
-    end
-
-    local function MakeInvisible(state)
-        local char = LocalPlayer.Character
-        if not char then return end
-        for _, child in pairs(char:GetDescendants()) do
-            if (child:IsA("BasePart") and child.Name ~= "HumanoidRootPart") or child:IsA("Decal") then
-                child.Transparency = state and 1 or 0
-            elseif child:IsA("Accessory") then
-                local handle = child:FindFirstChild("Handle")
-                if handle then handle.Transparency = state and 1 or 0 end
-            elseif child:IsA("BillboardGui") or child:IsA("SurfaceGui") then
-                child.Enabled = not state
-            end
-        end
-    end
-
-    local function FreezeBossModel(bossModel)
-        if not bossModel then return end
+local function SaveStats()
+    if writefile then
         pcall(function()
-            for _, part in pairs(bossModel:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = true
-                    part.CanCollide = false
-                end
-            end
-            local hum = bossModel:FindFirstChildWhichIsA("Humanoid")
-            if hum then
-                hum.WalkSpeed = 0
-                hum.JumpPower = 0
-                hum.PlatformStand = true
-            end
+            local data = {
+                TotalKills = StatsTracker.TotalKills,
+                BossKills = StatsTracker.BossKills
+            }
+            writefile(StatsFile, HttpService:JSONEncode(data))
         end)
     end
+end
 
-    local function GetActiveBossModel(bossName)
-        local bossesFolder = Workspace:FindFirstChild("BossesAreas")
-        if not bossesFolder then return nil end
-        local areaFolder = bossesFolder:FindFirstChild(bossName)
-        if areaFolder then
-            local model = areaFolder:FindFirstChild(bossName)
-            if model and model:IsA("Model") then
-                local hum = model:FindFirstChildWhichIsA("Humanoid")
-                if hum and hum.Health > 0 then return model end
-            end
-        end
-        return nil
-    end
-
-    -- 🌐 Smart Server Hop Engine
-    local VisitedServersFile = "kabos_visited.json"
-    local QueueOnTeleport = (queue_on_teleport or syn and syn.queue_on_teleport or fluxus and fluxus.queue_on_teleport)
-
-    local function SmartServerHop()
-        task.wait(math.random(2, 4))
-        if QueueOnTeleport then
-            QueueOnTeleport([[
-                repeat task.wait() until game:IsLoaded()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
-            ]])
-        end
-
-        local visited = {}
-        if isfile and isfile(VisitedServersFile) then
-            pcall(function() visited = HttpService:JSONDecode(readfile(VisitedServersFile)) or {} end)
-        end
-        table.insert(visited, game.JobId)
-        if writefile then writefile(VisitedServersFile, HttpService:JSONEncode(visited)) end
-
-        local placeId = game.PlaceId
-        local serversUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-        local success, response = pcall(function() return HttpService:JSONDecode(game:HttpGet(serversUrl)) end)
-
-        if success and response and response.data then
-            for _, server in ipairs(response.data) do
-                if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                    local alreadyVisited = false
-                    for _, vId in ipairs(visited) do
-                        if vId == server.id then alreadyVisited = true; break end
-                    end
-                    if not alreadyVisited then
-                        TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
-                        task.wait(4)
-                        return
-                    end
-                end
-            end
-        end
-        if writefile then writefile(VisitedServersFile, HttpService:JSONEncode({})) end
-        TeleportService:Teleport(placeId, LocalPlayer)
-    end
-
-    --------------------------------------------------------------------
-    -- ⚔️ COMBAT TAB OPTIONS
-    --------------------------------------------------------------------
-    Tabs.Combat:AddDropdown("BossSelector", {
-        Title = "Select Boss (Manual)",
-        Values = TargetBossNames,
-        Default = "All Bosses (Auto Loop)",
-        Callback = function(Value) Toggles.SelectedBoss = Value end
-    })
-
-    Tabs.Combat:AddToggle("AutoFarmToggle", {
-        Title = "Auto TP + Attack Boss",
-        Default = false,
-        Callback = function(Value)
-            Toggles.AutoFarm = Value
-            MakeInvisible(Value)
-        end
-    })
-
-    Tabs.Combat:AddToggle("HopToggle", {
-        Title = "Auto Server Hop (After Clear)",
-        Default = false,
-        Callback = function(Value) Toggles.ServerHopAfterFarm = Value end
-    })
-
-    --------------------------------------------------------------------
-    -- 🏋️ AUTO FARM TAB OPTIONS
-    --------------------------------------------------------------------
-    Tabs.Farm:AddToggle("AutoLiftToggle", {
-        Title = "🏋️ Auto Lift",
-        Default = false,
-        Callback = function(Value) Toggles.AutoLift = Value end
-    })
-
-    Tabs.Farm:AddToggle("StayZoneToggle", {
-        Title = "⚡ Auto Stay Zone (x6 Multipier)",
-        Default = false,
-        Callback = function(Value) Toggles.StayZone = Value end
-    })
-
-    Tabs.Farm:AddToggle("BringGemsToggle", {
-        Title = "💎 Bring All Gems",
-        Default = false,
-        Callback = function(Value) Toggles.BringGems = Value end
-    })
-
-    Tabs.Farm:AddToggle("BringMushroomsToggle", {
-        Title = "🍄 Bring All Mushrooms",
-        Default = false,
-        Callback = function(Value) Toggles.BringMushrooms = Value end
-    })
-
-    --------------------------------------------------------------------
-    -- 🚪 MISC / GATES TAB OPTIONS
-    --------------------------------------------------------------------
-    Tabs.Misc:AddButton({
-        Title = "🚪 Remove All Doors (1-15)",
-        Callback = function()
-            pcall(function()
-                local gatesFolder = Workspace:FindFirstChild("Gates", true)
-                if gatesFolder then
-                    for i = 1, 15 do
-                        local door = gatesFolder:FindFirstChild("Door" .. i)
-                        if door then door:Destroy() end
-                    end
-                    Fluent:Notify({ Title = "Success", Content = "All doors removed!", Duration = 3 })
-                end
-            end)
-        end
-    })
-
-    --------------------------------------------------------------------
-    -- ⚙️ SETTINGS & WEBHOOK TAB OPTIONS
-    --------------------------------------------------------------------
-    Tabs.Settings:AddInput("WebhookInput", {
-        Title = "Discord Webhook URL",
-        Default = "",
-        Placeholder = "Paste Webhook Here...",
-        Callback = function(Value) StatsTracker.WebhookUrl = Value end
-    })
-
-    Tabs.Settings:AddToggle("WebhookToggle", {
-        Title = "Enable Discord Webhook Kills Log",
-        Default = false,
-        Callback = function(Value) StatsTracker.SendWebhook = Value end
-    })
-
-    Tabs.Settings:AddButton({
-        Title = "🌐 Manual Server Hop",
-        Callback = SmartServerHop
-    })
-
-    --------------------------------------------------------------------
-    -- 🔄 BACKGROUND LOOPS (AUTOMATION ENGINE)
-    --------------------------------------------------------------------
-    -- Auto Lift Loop
-    task.spawn(function()
-        while true do
-            if Toggles.AutoLift then
-                pcall(function()
-                    local liftRemote = ReplicatedStorage:FindFirstChild("2663824b812c4e1e80abcb37b7ea983c")
-                    if liftRemote then liftRemote:FireServer("9") end
-                end)
-            end
-            task.wait(0.1)
-        end
-    end)
-
-    -- Auto Stay Zone Loop
-    task.spawn(function()
-        while true do
-            if Toggles.StayZone then
-                pcall(function()
-                    local _, hrp, hum = GetCharacterParts()
-                    local bossesFolder = Workspace:FindFirstChild("BossesAreas")
-                    if hrp and hum and hum.Health > 0 and bossesFolder then
-                        for _, bossName in ipairs(TargetBossNames) do
-                            if bossName ~= "All Bosses (Auto Loop)" then
-                                local areaFolder = bossesFolder:FindFirstChild(bossName)
-                                local zone = areaFolder and (areaFolder:FindFirstChild("Zone") or areaFolder:FindFirstChildWhichIsA("BasePart"))
-                                if zone then
-                                    hrp.CFrame = zone.CFrame + Vector3.new(0, 3, 0)
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end)
-            end
-            task.wait(0.1)
-        end
-    end)
-
-    -- Bring Gems & Mushrooms Loop
-    task.spawn(function()
-        while true do
-            if Toggles.BringGems or Toggles.BringMushrooms then
-                pcall(function()
-                    local _, hrp = GetCharacterParts()
-                    if hrp then
-                        for _, item in pairs(Workspace:GetChildren()) do
-                            if (Toggles.BringGems and item.Name:lower():find("gem")) or 
-                               (Toggles.BringMushrooms and item.Name:lower():find("mushroom")) then
-                                if item:IsA("BasePart") then
-                                    item.CFrame = hrp.CFrame
-                                elseif item:IsA("Model") and item.PrimaryPart then
-                                    item:SetPrimaryPartCFrame(hrp.CFrame)
-                                end
-                            end
-                        end
-                    end
-                end)
-            end
-            task.wait(0.5)
-        end
-    end)
-
-    -- Auto Boss Farm Engine
-    task.spawn(function()
-        while true do
-            task.wait(0.2)
-            if Toggles.AutoFarm then
-                local char, hrp, humanoid = GetCharacterParts()
-                if char and hrp and humanoid and humanoid.Health > 0 then
-                    MakeInvisible(true)
-                    local attackEvent = ReplicatedStorage:FindFirstChild("4c85c5705ad44e27883ec776e056211e")
-
-                    local bossListToFarm = {}
-                    if Toggles.SelectedBoss == "All Bosses (Auto Loop)" then
-                        for i = 2, #TargetBossNames do
-                            table.insert(bossListToFarm, TargetBossNames[i])
-                        end
-                    else
-                        table.insert(bossListToFarm, Toggles.SelectedBoss)
-                    end
-
-                    for _, bossName in ipairs(bossListToFarm) do
-                        if not Toggles.AutoFarm then break end
-                        local bossModel = GetActiveBossModel(bossName)
-                        if bossModel then
-                            local bossHum = bossModel:FindFirstChildWhichIsA("Humanoid")
-                            local bossPart = bossModel:FindFirstChild("HumanoidRootPart") or bossModel:FindFirstChildWhichIsA("BasePart")
-
-                            if bossPart and bossHum and bossHum.Health > 0 then
-                                local bossesFolder = Workspace:FindFirstChild("BossesAreas")
-                                local areaFolder = bossesFolder and bossesFolder:FindFirstChild(bossName)
-                                local zonePart = areaFolder and (areaFolder:FindFirstChild("Zone") or areaFolder:FindFirstChildWhichIsA("BasePart"))
-
-                                FreezeBossModel(bossModel)
-
-                                if zonePart then
-                                    hrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0)
-                                    if firetouchinterest then
-                                        firetouchinterest(hrp, zonePart, 0)
-                                        task.wait(0.01)
-                                        firetouchinterest(hrp, zonePart, 1)
-                                    end
-                                else
-                                    hrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 5, 8), bossPart.Position)
-                                end
-
-                                task.wait(0.1)
-                                local fightStartTime = os.time()
-
-                                while Toggles.AutoFarm and bossModel and bossModel.Parent and bossHum and bossHum.Health > 0 do
-                                    local currentChar, currentHrp, currentHum = GetCharacterParts()
-                                    if not currentChar or not currentHum or currentHum.Health <= 0 then break end
-
-                                    if (os.time() - fightStartTime) >= 180 then
-                                        if zonePart then currentHrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0) end
-                                        fightStartTime = os.time()
-                                    end
-
-                                    FreezeBossModel(bossModel)
-                                    currentHum:MoveTo(bossPart.Position + (bossPart.CFrame.LookVector * -10))
-
-                                    if (currentHrp.Position - bossPart.Position).Magnitude > 300 then
-                                        currentHrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 5, 8), bossPart.Position)
-                                    end
-
-                                    if attackEvent then
-                                        for i = 1, 10 do attackEvent:FireServer("PUNCH", bossModel) end
-                                    end
-                                    task.wait(0.02)
-                                end
-
-                                if not bossModel.Parent or (bossHum and bossHum.Health <= 0) then
-                                    StatsTracker.TotalKills = (StatsTracker.TotalKills or 0) + 1
-                                    StatsTracker.BossKills[bossName] = (StatsTracker.BossKills[bossName] or 0) + 1
-                                    SaveStats()
-                                    SendDiscordWebhook(bossName, StatsTracker.BossKills[bossName])
-                                end
-                            end
-                        end
-                    end
-
-                    if Toggles.ServerHopAfterFarm and Toggles.AutoFarm then
-                        SmartServerHop()
-                    end
-                else
-                    task.wait(0.5)
-                end
-            end
+local function SendDiscordWebhook(bossName, killsCount)
+    if not IsUnlocked or not StatsTracker.SendWebhook or StatsTracker.WebhookUrl == "" then return end
+    pcall(function()
+        local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+        if requestFunc then
+            local embed = {
+                ["title"] = "⚔️ Boss Defeated - Kabos Hub X",
+                ["color"] = 65280,
+                ["fields"] = {
+                    {["name"] = "Player", ["value"] = LocalPlayer.Name, ["inline"] = true},
+                    {["name"] = "Boss Killed", ["value"] = bossName, ["inline"] = true},
+                    {["name"] = "Total Kills", ["value"] = tostring(killsCount), ["inline"] = true}
+                },
+                ["footer"] = {["text"] = "Kabos Hub X Auto Tracker"}
+            }
+            requestFunc({
+                Url = StatsTracker.WebhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({embeds = {embed}})
+            })
         end
     end)
 end
 
 --------------------------------------------------------------------
--- 🔑 GATEKEEPER UI (التحكم بالحسابات والتاب الوحيد للمفتاح)
+-- 🔧 HELPER FUNCTIONS
 --------------------------------------------------------------------
-if IsUnlocked then
-    -- حساباتك أنت: تفعيل مباشر وبناء كل التابات فوراً
-    BuildAndRunMainScript()
-else
-    -- باقي الناس: التاب الوحيد المعروض هو تبويب الكود فقط
-    local KeyTab = Window:AddTab({ Title = "🔑 Key Access", Icon = "key" })
-    local InputtedKey = ""
+local function GetCharacterParts()
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hrp and hum and hum.Health > 0 then
+            return char, hrp, hum
+        end
+    end
+    return nil, nil, nil
+end
 
-    KeyTab:AddParagraph({
-        Title = "🔒 Security Lock",
-        Content = "Combat, Auto Farm and Misc tabs are completely locked and hidden until you verify a key."
+local function MakeInvisible(state)
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, child in pairs(char:GetDescendants()) do
+        if (child:IsA("BasePart") and child.Name ~= "HumanoidRootPart") or child:IsA("Decal") then
+            child.Transparency = state and 1 or 0
+        elseif child:IsA("Accessory") then
+            local handle = child:FindFirstChild("Handle")
+            if handle then handle.Transparency = state and 1 or 0 end
+        elseif child:IsA("BillboardGui") or child:IsA("SurfaceGui") then
+            child.Enabled = not state
+        end
+    end
+end
+
+local function FreezeBossModel(bossModel)
+    if not bossModel then return end
+    pcall(function()
+        for _, part in pairs(bossModel:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = true
+                part.CanCollide = false
+            end
+        end
+        local hum = bossModel:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            hum.PlatformStand = true
+        end
+    end)
+end
+
+local function GetActiveBossModel(bossName)
+    local bossesFolder = Workspace:FindFirstChild("BossesAreas")
+    if not bossesFolder then return nil end
+    local areaFolder = bossesFolder:FindFirstChild(bossName)
+    if areaFolder then
+        local model = areaFolder:FindFirstChild(bossName)
+        if model and model:IsA("Model") then
+            local hum = model:FindFirstChildWhichIsA("Humanoid")
+            if hum and hum.Health > 0 then return model end
+        end
+    end
+    return nil
+end
+
+-- 🌐 Smart Server Hop Engine
+local VisitedServersFile = "kabos_visited.json"
+local QueueOnTeleport = (queue_on_teleport or syn and syn.queue_on_teleport or fluxus and fluxus.queue_on_teleport)
+
+local function SmartServerHop()
+    if not IsUnlocked then return end
+    task.wait(math.random(2, 4))
+    if QueueOnTeleport then
+        QueueOnTeleport([[
+            repeat task.wait() until game:IsLoaded()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+        ]])
+    end
+
+    local visited = {}
+    if isfile and isfile(VisitedServersFile) then
+        pcall(function() visited = HttpService:JSONDecode(readfile(VisitedServersFile)) or {} end)
+    end
+    table.insert(visited, game.JobId)
+    if writefile then writefile(VisitedServersFile, HttpService:JSONEncode(visited)) end
+
+    local placeId = game.PlaceId
+    local serversUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local success, response = pcall(function() return HttpService:JSONDecode(game:HttpGet(serversUrl)) end)
+
+    if success and response and response.data then
+        for _, server in ipairs(response.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                local alreadyVisited = false
+                for _, vId in ipairs(visited) do
+                    if vId == server.id then alreadyVisited = true; break end
+                end
+                if not alreadyVisited then
+                    TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
+                    task.wait(4)
+                    return
+                end
+            end
+        end
+    end
+    if writefile then writefile(VisitedServersFile, HttpService:JSONEncode({})) end
+    TeleportService:Teleport(placeId, LocalPlayer)
+end
+
+--------------------------------------------------------------------
+-- 🔑 BUILD TABS (KEY ACCESS & MAIN FEATURES)
+--------------------------------------------------------------------
+local Tabs = {}
+
+-- إذا كان المستخدم ليس أنت، يتم إنشاء تاب الكود أولاً
+if not IsMyAccount() then
+    Tabs.Auth = Window:AddTab({ Title = "🔑 Key Access", Icon = "key" })
+    local KeyInputText = ""
+
+    local KeyStatusParagraph = Tabs.Auth:AddParagraph({
+        Title = "🔒 Status: Locked",
+        Content = "You must enter a valid key to enable script features."
     })
 
-    KeyTab:AddInput("KeyInput", {
+    Tabs.Auth:AddInput("KeyInput", {
         Title = "Enter Access Key",
         Default = "",
         Placeholder = "Paste Key Here...",
         Callback = function(Value)
-            -- تنظيف المسافات الزائدة لضمان صحة الكود بدون أخطاء
-            InputtedKey = string.gsub(Value, "%s+", "")
+            KeyInputText = string.gsub(Value, "%s+", "")
         end
     })
 
-    KeyTab:AddButton({
-        Title = "🔓 Unlock Full Script",
+    Tabs.Auth:AddButton({
+        Title = "🔓 Verify & Unlock",
         Callback = function()
-            if ALLOWED_KEYS[InputtedKey] then
-                -- عند إدخال الكود الصحيح: بناء وبدء باقي التابات فوراً
-                BuildAndRunMainScript()
+            if ALLOWED_KEYS[KeyInputText] then
+                IsUnlocked = true
+                KeyStatusParagraph:SetTitle("🔓 Status: Unlocked")
+                KeyStatusParagraph:SetText("Key Verified! All features are now operational.")
+                
+                Fluent:Notify({
+                    Title = "Access Granted",
+                    Content = "Script features are now UNLOCKED!",
+                    Duration = 4
+                })
             else
                 Fluent:Notify({
-                    Title = "Invalid Key",
-                    Content = "The key you entered is incorrect! Check spelling/spaces.",
+                    Title = "Access Denied",
+                    Content = "Invalid Key! Check spelling and try again.",
                     Duration = 4
                 })
             end
         end
     })
 
-    KeyTab:AddButton({
+    Tabs.Auth:AddButton({
         Title = "🌐 Get Key (Copy Discord Link)",
         Callback = function()
             if setclipboard then
                 setclipboard(DISCORD_INVITE)
                 Fluent:Notify({ Title = "Copied!", Content = "Discord link copied to clipboard!", Duration = 4 })
             else
-                Fluent:Notify({ Title = "Error", Content = "Your executor doesn't support setclipboard.", Duration = 4 })
+                Fluent:Notify({ Title = "Error", Content = "Executor doesn't support setclipboard.", Duration = 4 })
             end
         end
     })
 end
+
+-- تابات السكربت الرئيسية
+Tabs.Combat   = Window:AddTab({ Title = "Combat", Icon = "swords" })
+Tabs.Farm     = Window:AddTab({ Title = "Auto Farm", Icon = "dumbbell" })
+Tabs.Misc     = Window:AddTab({ Title = "Misc / Gates", Icon = "door-open" })
+Tabs.Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+
+--------------------------------------------------------------------
+-- ⚔️ COMBAT TAB OPTIONS
+--------------------------------------------------------------------
+Tabs.Combat:AddDropdown("BossSelector", {
+    Title = "Select Boss (Manual)",
+    Values = TargetBossNames,
+    Default = "All Bosses (Auto Loop)",
+    Callback = function(Value)
+        Toggles.SelectedBoss = Value
+    end
+})
+
+Tabs.Combat:AddToggle("AutoFarmToggle", {
+    Title = "Auto TP + Attack Boss",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key in 'Key Access' tab first!", Duration = 3 })
+            return
+        end
+        Toggles.AutoFarm = Value
+        MakeInvisible(Value)
+    end
+})
+
+Tabs.Combat:AddToggle("HopToggle", {
+    Title = "Auto Server Hop (After Clear)",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        Toggles.ServerHopAfterFarm = Value
+    end
+})
+
+--------------------------------------------------------------------
+-- 🏋️ AUTO FARM TAB OPTIONS
+--------------------------------------------------------------------
+Tabs.Farm:AddToggle("AutoLiftToggle", {
+    Title = "🏋️ Auto Lift",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        Toggles.AutoLift = Value
+    end
+})
+
+Tabs.Farm:AddToggle("StayZoneToggle", {
+    Title = "⚡ Auto Stay Zone (x6)",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        Toggles.StayZone = Value
+    end
+})
+
+Tabs.Farm:AddToggle("BringGemsToggle", {
+    Title = "💎 Bring All Gems",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        Toggles.BringGems = Value
+    end
+})
+
+Tabs.Farm:AddToggle("BringMushroomsToggle", {
+    Title = "🍄 Bring All Mushrooms",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        Toggles.BringMushrooms = Value
+    end
+})
+
+--------------------------------------------------------------------
+-- 🚪 MISC / GATES TAB OPTIONS
+--------------------------------------------------------------------
+Tabs.Misc:AddButton({
+    Title = "🚪 Remove All Doors (1-15)",
+    Callback = function()
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        pcall(function()
+            local gatesFolder = Workspace:FindFirstChild("Gates", true)
+            if gatesFolder then
+                for i = 1, 15 do
+                    local door = gatesFolder:FindFirstChild("Door" .. i)
+                    if door then door:Destroy() end
+                end
+                Fluent:Notify({ Title = "Success", Content = "All doors removed!", Duration = 3 })
+            end
+        end)
+    end
+})
+
+--------------------------------------------------------------------
+-- ⚙️ SETTINGS TAB OPTIONS
+--------------------------------------------------------------------
+Tabs.Settings:AddInput("WebhookInput", {
+    Title = "Discord Webhook URL",
+    Default = "",
+    Placeholder = "Paste Webhook Here...",
+    Callback = function(Value)
+        if IsUnlocked then StatsTracker.WebhookUrl = Value end
+    end
+})
+
+Tabs.Settings:AddToggle("WebhookToggle", {
+    Title = "Enable Discord Webhook Kills Log",
+    Default = false,
+    Callback = function(Value)
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        StatsTracker.SendWebhook = Value
+    end
+})
+
+Tabs.Settings:AddButton({
+    Title = "🌐 Manual Server Hop",
+    Callback = function()
+        if not IsUnlocked then
+            Fluent:Notify({ Title = "🔒 Locked Feature", Content = "Enter the key first!", Duration = 3 })
+            return
+        end
+        SmartServerHop()
+    end
+})
+
+--------------------------------------------------------------------
+-- 🔄 BACKGROUND ENGINE LOOPS (PROTECTED BY IsUnlocked)
+--------------------------------------------------------------------
+-- Auto Lift Loop
+task.spawn(function()
+    while true do
+        if IsUnlocked and Toggles.AutoLift then
+            pcall(function()
+                local liftRemote = ReplicatedStorage:FindFirstChild("2663824b812c4e1e80abcb37b7ea983c")
+                if liftRemote then liftRemote:FireServer("9") end
+            end)
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- Auto Stay Zone Loop
+task.spawn(function()
+    while true do
+        if IsUnlocked and Toggles.StayZone then
+            pcall(function()
+                local _, hrp, hum = GetCharacterParts()
+                local bossesFolder = Workspace:FindFirstChild("BossesAreas")
+                if hrp and hum and hum.Health > 0 and bossesFolder then
+                    for _, bossName in ipairs(TargetBossNames) do
+                        if bossName ~= "All Bosses (Auto Loop)" then
+                            local areaFolder = bossesFolder:FindFirstChild(bossName)
+                            local zone = areaFolder and (areaFolder:FindFirstChild("Zone") or areaFolder:FindFirstChildWhichIsA("BasePart"))
+                            if zone then
+                                hrp.CFrame = zone.CFrame + Vector3.new(0, 3, 0)
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- Bring Gems & Mushrooms Loop
+task.spawn(function()
+    while true do
+        if IsUnlocked and (Toggles.BringGems or Toggles.BringMushrooms) then
+            pcall(function()
+                local _, hrp = GetCharacterParts()
+                if hrp then
+                    for _, item in pairs(Workspace:GetChildren()) do
+                        if (Toggles.BringGems and item.Name:lower():find("gem")) or 
+                           (Toggles.BringMushrooms and item.Name:lower():find("mushroom")) then
+                            if item:IsA("BasePart") then
+                                item.CFrame = hrp.CFrame
+                            elseif item:IsA("Model") and item.PrimaryPart then
+                                item:SetPrimaryPartCFrame(hrp.CFrame)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- Auto Boss Farm Engine
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if IsUnlocked and Toggles.AutoFarm then
+            local char, hrp, humanoid = GetCharacterParts()
+            if char and hrp and humanoid and humanoid.Health > 0 then
+                MakeInvisible(true)
+                local attackEvent = ReplicatedStorage:FindFirstChild("4c85c5705ad44e27883ec776e056211e")
+
+                local bossListToFarm = {}
+                if Toggles.SelectedBoss == "All Bosses (Auto Loop)" then
+                    for i = 2, #TargetBossNames do
+                        table.insert(bossListToFarm, TargetBossNames[i])
+                    end
+                else
+                    table.insert(bossListToFarm, Toggles.SelectedBoss)
+                end
+
+                for _, bossName in ipairs(bossListToFarm) do
+                    if not (IsUnlocked and Toggles.AutoFarm) then break end
+                    local bossModel = GetActiveBossModel(bossName)
+                    if bossModel then
+                        local bossHum = bossModel:FindFirstChildWhichIsA("Humanoid")
+                        local bossPart = bossModel:FindFirstChild("HumanoidRootPart") or bossModel:FindFirstChildWhichIsA("BasePart")
+
+                        if bossPart and bossHum and bossHum.Health > 0 then
+                            local bossesFolder = Workspace:FindFirstChild("BossesAreas")
+                            local areaFolder = bossesFolder and bossesFolder:FindFirstChild(bossName)
+                            local zonePart = areaFolder and (areaFolder:FindFirstChild("Zone") or areaFolder:FindFirstChildWhichIsA("BasePart"))
+
+                            FreezeBossModel(bossModel)
+
+                            if zonePart then
+                                hrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0)
+                                if firetouchinterest then
+                                    firetouchinterest(hrp, zonePart, 0)
+                                    task.wait(0.01)
+                                    firetouchinterest(hrp, zonePart, 1)
+                                end
+                            else
+                                hrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 5, 8), bossPart.Position)
+                            end
+
+                            task.wait(0.1)
+                            local fightStartTime = os.time()
+
+                            while IsUnlocked and Toggles.AutoFarm and bossModel and bossModel.Parent and bossHum and bossHum.Health > 0 do
+                                local currentChar, currentHrp, currentHum = GetCharacterParts()
+                                if not currentChar or not currentHum or currentHum.Health <= 0 then break end
+
+                                if (os.time() - fightStartTime) >= 180 then
+                                    if zonePart then currentHrp.CFrame = zonePart.CFrame + Vector3.new(0, 2, 0) end
+                                    fightStartTime = os.time()
+                                end
+
+                                FreezeBossModel(bossModel)
+                                currentHum:MoveTo(bossPart.Position + (bossPart.CFrame.LookVector * -10))
+
+                                if (currentHrp.Position - bossPart.Position).Magnitude > 300 then
+                                    currentHrp.CFrame = CFrame.new(bossPart.Position + Vector3.new(0, 5, 8), bossPart.Position)
+                                end
+
+                                if attackEvent then
+                                    for i = 1, 10 do attackEvent:FireServer("PUNCH", bossModel) end
+                                end
+                                task.wait(0.02)
+                            end
+
+                            if not bossModel.Parent or (bossHum and bossHum.Health <= 0) then
+                                StatsTracker.TotalKills = (StatsTracker.TotalKills or 0) + 1
+                                StatsTracker.BossKills[bossName] = (StatsTracker.BossKills[bossName] or 0) + 1
+                                SaveStats()
+                                SendDiscordWebhook(bossName, StatsTracker.BossKills[bossName])
+                            end
+                        end
+                    end
+                end
+
+                if Toggles.ServerHopAfterFarm and Toggles.AutoFarm then
+                    SmartServerHop()
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+    end
+end)
