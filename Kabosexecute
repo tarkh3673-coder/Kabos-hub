@@ -15,6 +15,7 @@ local LocalPlayer = Players.LocalPlayer
 -- Load Fluent UI & SaveManager Libraries
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 -- Disable Gold Popups
 local function DisableGoldPopups(targetFolder)
@@ -114,15 +115,16 @@ local function GetActiveBossModel(bossName)
     return nil
 end
 
--- Server Hop Helper
-local VisitedServersFile = "kabos_visited.json"
+-- 🌐 Smart Server Hop (بدون تكرار سيرفرات + QueueOnTeleport للتشغيل التلقائي بعد الانتقال)
+local VisitedServersFile = "Kabos_Visited_Servers.json"
 local QueueOnTeleport = (queue_on_teleport or syn and syn.queue_on_teleport or fluxus and fluxus.queue_on_teleport)
 
 local function SmartServerHop()
+    -- تفعيل التشغيل التلقائي (Auto Execute) فور الانتقال للسيرفر الجديد
     if QueueOnTeleport then
         QueueOnTeleport([[
             repeat task.wait() until game:IsLoaded()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/tarkh3673-coder/Kabos-hub/refs/heads/main/Kabosexecute"))()
         ]])
     end
 
@@ -130,7 +132,13 @@ local function SmartServerHop()
     if isfile and isfile(VisitedServersFile) then
         pcall(function() visited = HttpService:JSONDecode(readfile(VisitedServersFile)) or {} end)
     end
-    table.insert(visited, game.JobId)
+    
+    local currentJobId = game.JobId
+    local alreadyInList = false
+    for _, id in ipairs(visited) do
+        if id == currentJobId then alreadyInList = true; break end
+    end
+    if not alreadyInList then table.insert(visited, currentJobId) end
     if writefile then writefile(VisitedServersFile, HttpService:JSONEncode(visited)) end
 
     local placeId = game.PlaceId
@@ -139,12 +147,12 @@ local function SmartServerHop()
 
     if success and response and response.data then
         for _, server in ipairs(response.data) do
-            if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                local alreadyVisited = false
+            if server.playing < server.maxPlayers and server.id ~= currentJobId then
+                local isVisited = false
                 for _, vId in ipairs(visited) do
-                    if vId == server.id then alreadyVisited = true; break end
+                    if vId == server.id then isVisited = true; break end
                 end
-                if not alreadyVisited then
+                if not isVisited then
                     TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
                     task.wait(4)
                     return
@@ -156,10 +164,10 @@ local function SmartServerHop()
     TeleportService:Teleport(placeId, LocalPlayer)
 end
 
--- 🔗 رابط سيرفر الديسكورد الخاص بك
+-- 🔗 Discord Link
 local DiscordLink = "Https://discord.gg/f56x5gTu"
 
--- 🎨 Build GUI using Fluent (مُدمج مع Key System)
+-- 🎨 Build GUI using Fluent
 local Window = Fluent:CreateWindow({
     Title = "Kabos Hub X",
     SubTitle = "By Sterion",
@@ -168,7 +176,6 @@ local Window = Fluent:CreateWindow({
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.RightControl,
 
-    -- 🔒 نظام المفاتيح والأكواد (تم اضافة يوزرك هنا)
     KeySystem = true,
     KeySettings = {
         Title = "Kabos Hub - Key System",
@@ -253,21 +260,10 @@ Tabs.Misc:AddButton({
 -- ⚙️ Settings
 Tabs.Settings:AddButton({
     Title = "Copy Discord Server Link 🔗",
-    Description = "ينسخ رابط سيرفر الديسكورد تلقائياً",
     Callback = function()
         if setclipboard then
             setclipboard(DiscordLink)
-            Fluent:Notify({
-                Title = "Copied!",
-                Content = "تم نسخ رابط الديسكورد بنجاح!",
-                Duration = 4
-            })
-        else
-            Fluent:Notify({
-                Title = "Error",
-                Content = "الـ Executor لا يدعم خاصية النسخ المباشر.",
-                Duration = 4
-            })
+            Fluent:Notify({ Title = "Copied!", Content = "تم نسخ رابط الديسكورد!", Duration = 4 })
         end
     end
 })
@@ -281,13 +277,15 @@ Tabs.Settings:AddButton({
     Title = "Clear Server Hop History",
     Callback = function()
         if writefile then writefile(VisitedServersFile, HttpService:JSONEncode({})) end
+        Fluent:Notify({ Title = "Cleared", Content = "تم مسح سجل السيرفرات بنجاح!", Duration = 3 })
     end
 })
 
--- 💾 Save Manager Setup
+-- 💾 Save Manager Setup (حفظ الإعدادات تلقائياً)
 SaveManager:SetLibrary(Fluent)
 SaveManager:SetFolder("KabosHubConfig")
 SaveManager:BuildConfigSection(Tabs.Settings)
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:LoadAutoloadConfig()
 
 -- 🛒 AUTO BUY LOOP
@@ -313,7 +311,6 @@ task.spawn(function()
 
                 if equipRemote then
                     local equippedWeightName = nil
-
                     local statsFolder = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("Stats") or LocalPlayer:FindFirstChild("Data")
                     if statsFolder then
                         for _, val in pairs(statsFolder:GetChildren()) do
@@ -329,14 +326,8 @@ task.spawn(function()
                         equippedWeightName = charTool and charTool.Name or "Moon"
                     end
 
-                    equipRemote:FireServer({
-                        ToolName = equippedWeightName,
-                        Mode = "weight"
-                    })
-
-                    if buyRemote then
-                        buyRemote:InvokeServer("CURRENTGAMEPASSES")
-                    end
+                    equipRemote:FireServer({ ToolName = equippedWeightName, Mode = "weight" })
+                    if buyRemote then buyRemote:InvokeServer("CURRENTGAMEPASSES") end
                 end
             end)
         end
@@ -388,19 +379,14 @@ end)
 local function IsExactAllowedGem(item)
     if not item then return false end
     local itemNameLower = string.lower(item.Name)
-
     local isMatched = false
     for _, allowedName in ipairs(AllowedGemNames) do
-        if itemNameLower:find(allowedName, 1, true) then
-            isMatched = true
-            break
-        end
+        if itemNameLower:find(allowedName, 1, true) then isMatched = true; break end
     end
     if not isMatched then return false end
 
     local hasTouch = item:FindFirstChildWhichIsA("TouchTransmitter", true) or item:FindFirstChild("TouchInterest", true)
     local hasPrompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
-
     return (hasTouch ~= nil or hasPrompt ~= nil)
 end
 
@@ -446,14 +432,10 @@ task.spawn(function()
 
                 local activeBossTargets = {}
                 for bossName, isSelected in pairs(Toggles.SelectedBosses) do
-                    if isSelected then
-                        table.insert(activeBossTargets, bossName)
-                    end
+                    if isSelected then table.insert(activeBossTargets, bossName) end
                 end
 
-                if #activeBossTargets == 0 then
-                    activeBossTargets = BossNamesList
-                end
+                if #activeBossTargets == 0 then activeBossTargets = BossNamesList end
 
                 for _, bossName in ipairs(activeBossTargets) do
                     if not Toggles.AutoFarm then break end
@@ -485,16 +467,11 @@ task.spawn(function()
 
                             while Toggles.AutoFarm and bossModel and bossModel.Parent and bossHum and bossHum.Health > 0 do
                                 local currentChar, currentHrp, currentHum = GetCharacterParts()
-                                if not currentChar or not currentHum or currentHum.Health <= 0 then
-                                    break
-                                end
+                                if not currentChar or not currentHum or currentHum.Health <= 0 then break end
 
                                 FreezeBossModel(bossModel)
-
                                 if attackEvent then
-                                    for i = 1, 10 do
-                                        attackEvent:FireServer("PUNCH", bossModel)
-                                    end
+                                    for i = 1, 10 do attackEvent:FireServer("PUNCH", bossModel) end
                                 end
                                 task.wait(0.02)
                             end
@@ -514,4 +491,3 @@ task.spawn(function()
         end
     end
 end)
-
