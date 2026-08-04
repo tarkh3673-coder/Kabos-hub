@@ -13,113 +13,88 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 --------------------------------------------------------------------
--- 🔐 AUTH & KEY SYSTEM SETUP
+-- 🔐 AUTH & KEY SYSTEM SETUP (GLOBAL FOR EVERYONE)
 --------------------------------------------------------------------
--- اليوزرات المسموح لها بالوصول التلقائي (Auto Bypass)
-local MY_USERNAMES = {"kabos12128", "kabos257"} 
 
--- المفتاح الرئيسي للـ Owner
-local MY_EXCLUSIVE_KEY = "#bBGBty98" 
-
--- المفاتيح العامة لباقي المستخدمين
+-- المفاتيح المسموح بها للجميع (شغالة لأي حساب وأي جهاز)
 local ALLOWED_KEYS = {
-    ["#bBGBty98"] = true, -- إمكانية استخدامه كمفتاح مباشر
-    ["Kabos2026"] = true  -- مفتاح تجريبي
+    ["#bBGBty98"] = true, -- المفتاح الرئيسي المفتوح للكل
+    ["Kabos2026"] = true  -- مفتاح إضافي احتياطي
 }
-local DISCORD_INVITE = "https://discord.gg/4JKrYkb3r"
 
-local function IsMyAccount()
-    local pName = string.lower(LocalPlayer.Name)
-    local pDisplay = string.lower(LocalPlayer.DisplayName)
-    for _, u in ipairs(MY_USERNAMES) do
-        if pName == string.lower(u) or pDisplay == string.lower(u) then
-            return true
-        end
-    end
-    return false
-end
+local DISCORD_INVITE = "https://discord.gg/4JKrYkb3r"
 
 -- Load Fluent UI Library
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local ScriptAuthenticated = false
 
--- 1. Auto Bypass for Whitelisted Usernames
-if IsMyAccount() then
-    ScriptAuthenticated = true
-    Fluent:Notify({
-        Title = "Kabos Hub X",
-        Content = "Welcome Back, Owner! Auto-authenticated successfully.",
-        Duration = 5
-    })
-else
-    -- 2. Key System Window for other users
-    local KeyWindow = Fluent:CreateWindow({
-        Title = "Kabos Hub - Authentication",
-        SubTitle = "Key System",
-        TabWidth = 140,
-        Size = UDim2.fromOffset(450, 260),
-        Theme = "Dark"
-    })
+-- Key System Window (تظهر لأي شخص)
+local KeyWindow = Fluent:CreateWindow({
+    Title = "Kabos Hub - Authentication",
+    SubTitle = "Key System",
+    TabWidth = 140,
+    Size = UDim2.fromOffset(450, 260),
+    Theme = "Dark"
+})
 
-    local KeyTab = KeyWindow:AddTab({ Title = "Key System", Icon = "key" })
+local KeyTab = KeyWindow:AddTab({ Title = "Key System", Icon = "key" })
 
-    local InputtedKey = ""
+local InputtedKey = ""
 
-    KeyTab:AddInput("KeyInput", {
-        Title = "Enter Key",
-        Default = "",
-        Placeholder = "Paste Key Here...",
-        Callback = function(Value)
-            InputtedKey = Value
+KeyTab:AddInput("KeyInput", {
+    Title = "Enter Key",
+    Default = "",
+    Placeholder = "Paste Key Here...",
+    Callback = function(Value)
+        InputtedKey = Value
+    end
+})
+
+KeyTab:AddButton({
+    Title = "🔑 Verify Key",
+    Callback = function()
+        -- فحص المفتاح بدون النظر لاسم الحساب
+        if ALLOWED_KEYS[InputtedKey] then
+            ScriptAuthenticated = true
+            KeyWindow:Destroy()
+            Fluent:Notify({
+                Title = "Access Granted",
+                Content = "Welcome to Kabos Hub!",
+                Duration = 4
+            })
+        else
+            Fluent:Notify({
+                Title = "Invalid Key",
+                Content = "The key you entered is incorrect!",
+                Duration = 4
+            })
         end
-    })
+    end
+})
 
-    KeyTab:AddButton({
-        Title = "🔑 Verify Key",
-        Callback = function()
-            -- فحص المفتاح الرئيسي أو القائمة
-            if InputtedKey == MY_EXCLUSIVE_KEY or ALLOWED_KEYS[InputtedKey] then
-                ScriptAuthenticated = true
-                KeyWindow:Destroy()
-                Fluent:Notify({
-                    Title = "Access Granted",
-                    Content = "Key verified successfully!",
-                    Duration = 4
-                })
-            else
-                Fluent:Notify({
-                    Title = "Invalid Key",
-                    Content = "The key you entered is incorrect!",
-                    Duration = 4
-                })
-            end
+KeyTab:AddButton({
+    Title = "🌐 Get Key (Copy Discord Link)",
+    Callback = function()
+        if setclipboard then
+            setclipboard(DISCORD_INVITE)
+            Fluent:Notify({
+                Title = "Copied!",
+                Content = "Discord invite copied to clipboard successfully!",
+                Duration = 4
+            })
+        else
+            Fluent:Notify({
+                Title = "Error",
+                Content = "Your executor doesn't support setclipboard function.",
+                Duration = 4
+            })
         end
-    })
+    end
+})
 
-    KeyTab:AddButton({
-        Title = "🌐 Get Key (Copy Discord Link)",
-        Callback = function()
-            if setclipboard then
-                setclipboard(DISCORD_INVITE)
-                Fluent:Notify({
-                    Title = "Copied!",
-                    Content = "Discord invite copied to clipboard successfully!",
-                    Duration = 4
-                })
-            else
-                Fluent:Notify({
-                    Title = "Error",
-                    Content = "Your executor doesn't support setclipboard function.",
-                    Duration = 4
-                })
-            end
-        end
-    })
-
-    -- Wait until authenticated
-    repeat task.wait(0.5) until ScriptAuthenticated
-end
+-- Wait until authenticated
+repeat task.wait(0.5) until ScriptAuthenticated
 
 --------------------------------------------------------------------
 -- 🚀 MAIN HUB SCRIPT (KABOS HUB X)
