@@ -166,10 +166,10 @@ end
 -- 🔗 Discord Link
 local DiscordLink = "Https://discord.gg/f56x5gTu"
 
--- 🎨 Build GUI using Fluent (بدون حرف الـ X نهائياً)
+-- 🎨 Build GUI using Fluent (مع الإيموجي المميز للنسخة الجديدة)
 local Window = Fluent:CreateWindow({
-    Title = "Kabos Hub",
-    SubTitle = "By Sterion",
+    Title = "🔥 Kabos Hub ⚡",
+    SubTitle = "By Sterion - New Update",
     TabWidth = 140,
     Size = UDim2.fromOffset(530, 360),
     Theme = "Dark",
@@ -248,7 +248,7 @@ Tabs.Misc:AddButton({
             local gatesFolder = Workspace:FindFirstChild("Gates", true)
             if gatesFolder then
                 for i = 1, 15 do
-                    local door = gatesFolder:FindFirstChild("Door" + i)
+                    local door = gatesFolder:FindFirstChild("Door" .. i)
                     if door then door:Destroy() end
                 end
             end
