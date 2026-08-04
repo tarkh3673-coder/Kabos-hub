@@ -15,8 +15,6 @@ local LocalPlayer = Players.LocalPlayer
 --------------------------------------------------------------------
 -- 🔐 AUTH & KEY SYSTEM SETUP
 --------------------------------------------------------------------
-local MY_USERNAMES = {"kabos12128", "kabos257"}
-
 local ALLOWED_KEYS = {
     ["#bBGBty98"] = true,
     ["Kabos2026"] = true  
@@ -24,84 +22,70 @@ local ALLOWED_KEYS = {
 
 local DISCORD_INVITE = "https://discord.gg/4JKrYkb3r"
 
-local function IsMyAccount()
-    local pName = string.lower(LocalPlayer.Name or "")
-    local pDisplay = string.lower(LocalPlayer.DisplayName or "")
-    for _, u in ipairs(MY_USERNAMES) do
-        local cleanU = string.lower(u)
-        if pName == cleanU or pDisplay == cleanU then
-            return true
-        end
-    end
-    return false
-end
-
 -- Load Fluent UI Library
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
-local ScriptAuthenticated = IsMyAccount()
+local ScriptAuthenticated = false
 
--- لو مش حسابك، هنفتح نافذة الكود
-if not ScriptAuthenticated then
-    local KeyWindow = Fluent:CreateWindow({
-        Title = "Kabos Hub - Verification",
-        SubTitle = "Key System",
-        TabWidth = 140,
-        Size = UDim2.fromOffset(450, 260),
-        Theme = "Dark"
-    })
+-- فتح نافذة التحقق من المفتاح
+local KeyWindow = Fluent:CreateWindow({
+    Title = "Kabos Hub - Verification",
+    SubTitle = "Key System",
+    TabWidth = 140,
+    Size = UDim2.fromOffset(450, 260),
+    Theme = "Dark"
+})
 
-    local KeyTab = KeyWindow:AddTab({ Title = "Key Access", Icon = "key" })
+local KeyTab = KeyWindow:AddTab({ Title = "Key Access", Icon = "key" })
 
-    local KeyInputObj = KeyTab:AddInput("KeyInput", {
-        Title = "Enter Access Key",
-        Default = "",
-        Placeholder = "Paste Key Here...",
-        Callback = function(Value) end
-    })
+local KeyInputObj = KeyTab:AddInput("KeyInput", {
+    Title = "Enter Access Key",
+    Default = "",
+    Placeholder = "Paste Key Here...",
+    Callback = function(Value) end
+})
 
-    KeyTab:AddButton({
-        Title = "🔑 Verify & Unlock",
-        Callback = function()
-            local rawText = KeyInputObj.Value or ""
-            local cleanKey = string.gsub(rawText, "Enter Access Key", "")
-            cleanKey = string.gsub(cleanKey, "%s+", "")
+KeyTab:AddButton({
+    Title = "🔑 Verify & Unlock",
+    Callback = function()
+        local rawText = KeyInputObj.Value or ""
+        local cleanKey = string.gsub(rawText, "Enter Access Key", "")
+        cleanKey = string.gsub(cleanKey, "%s+", "")
 
-            if ALLOWED_KEYS[cleanKey] or ALLOWED_KEYS[rawText] then
-                Fluent:Notify({
-                    Title = "Success!",
-                    Content = "Key Accepted! Loading Hub...",
-                    Duration = 2
-                })
-                task.wait(0.5)
-                KeyWindow:Destroy()
-                ScriptAuthenticated = true
-            else
-                Fluent:Notify({
-                    Title = "Invalid Key",
-                    Content = "The key you entered is incorrect!",
-                    Duration = 3
-                })
-            end
+        if ALLOWED_KEYS[cleanKey] or ALLOWED_KEYS[rawText] then
+            Fluent:Notify({
+                Title = "Success!",
+                Content = "Key Accepted! Opening Hub...",
+                Duration = 2
+            })
+            task.wait(0.5)
+            KeyWindow:Destroy()
+            ScriptAuthenticated = true
+        else
+            Fluent:Notify({
+                Title = "Invalid Key",
+                Content = "The key you entered is incorrect!",
+                Duration = 3
+            })
         end
-    })
+    end
+})
 
-    KeyTab:AddButton({
-        Title = "🌐 Get Key (Copy Discord Link)",
-        Callback = function()
-            if setclipboard then
-                setclipboard(DISCORD_INVITE)
-                Fluent:Notify({
-                    Title = "Copied!",
-                    Content = "Discord invite copied to clipboard!",
-                    Duration = 3
-                })
-            end
+KeyTab:AddButton({
+    Title = "🌐 Get Key (Copy Discord Link)",
+    Callback = function()
+        if setclipboard then
+            setclipboard(DISCORD_INVITE)
+            Fluent:Notify({
+                Title = "Copied!",
+                Content = "Discord invite copied to clipboard!",
+                Duration = 3
+            })
         end
-    })
-end
+    end
+})
 
--- الانتظار لحين نجاح التحقق
+-- الانتظار لحين إدخال الكود الصحيح
 while not ScriptAuthenticated do
     task.wait(0.2)
 end
@@ -255,6 +239,7 @@ local function GetActiveBossModel(bossName)
     return nil
 end
 
+-- 📊 إرجاع دالة قراءة الذهب الشاملة
 local function GetPlayerGold()
     local goldVal = "N/A"
     pcall(function()
@@ -269,10 +254,25 @@ local function GetPlayerGold()
                 end
             end
         end
+
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if playerGui then
+            for _, desc in pairs(playerGui:GetDescendants()) do
+                if (desc:IsA("TextLabel") or desc:IsA("TextBox")) and string.match(desc.Text, "^%d+$") then
+                    if tonumber(desc.Text) and tonumber(desc.Text) > 1000 then
+                        if desc.Parent and (desc.Parent.Name:lower():find("bar") or desc.Parent.Name:lower():find("gold")) then
+                            goldVal = desc.Text
+                            return
+                        end
+                    end
+                end
+            end
+        end
     end)
     return goldVal
 end
 
+-- 💎 إرجاع دالة قراءة الجواهر الشاملة
 local function GetPlayerGems()
     local gemsVal = "N/A"
     pcall(function()
@@ -284,6 +284,18 @@ local function GetPlayerGems()
                 if item then
                     gemsVal = tostring(item.Value)
                     return
+                end
+            end
+        end
+
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if playerGui then
+            for _, desc in pairs(playerGui:GetDescendants()) do
+                if (desc:IsA("TextLabel") or desc:IsA("TextBox")) and (desc.Text:find("M") or desc.Text:find("K") or desc.Text:find("%.")) then
+                    if desc.Parent and (desc.Parent.Name:lower():find("gem") or desc.Parent.Name:lower():find("diamond")) then
+                        gemsVal = desc.Text
+                        return
+                    end
                 end
             end
         end
@@ -377,7 +389,7 @@ local function SmartServerHop()
     TeleportService:Teleport(placeId, LocalPlayer)
 end
 
--- 🎨 Build Main GUI
+-- 🎨 بناء القائمة الرئيسية (تظهر بوضوح قدامك)
 local Window = Fluent:CreateWindow({
     Title = "Kabos Hub X",
     SubTitle = "By Sterion",
